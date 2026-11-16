@@ -4,3 +4,7 @@ __pycache__/
 otp/graph.obj
 otp/otp.jar
 otp/poa.osm.pbf
+otp/validacao/
+dados/osm/
+etl/cache/
+ferramentas/

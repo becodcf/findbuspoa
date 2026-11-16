@@ -1,5 +1,7 @@
 pandas>=3.0
 numpy
+scipy
+osmium>=4.0
 fastapi
 uvicorn[standard]
 httpx

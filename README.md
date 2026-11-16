@@ -20,9 +20,15 @@ Pré-requisitos: Python 3.11+ e Java 21+.
 
 O OTP leva cerca de 30 s para carregar. `GET /api/saude` mostra se ele está no ar.
 
+```powershell
+.\iniciar.ps1 -Validar   # roda o gtfs-validator (MobilityData); relatório em otp\validacao\report.html
+eport.html
+```
+
 Na primeira execução o script baixa automaticamente os arquivos que não vão para o git:
 - `otp.jar`: https://repo1.maven.org/maven2/org/opentripplanner/otp-shaded/2.9.0/otp-shaded-2.9.0.jar
-- `poa.osm.pbf`: https://download.bbbike.org/osm/bbbike/PortoAlegre/PortoAlegre.osm.pbf
+- mapa OSM: extrato da região Sul da Geofabrik (https://download.geofabrik.de/south-america/brazil/sul-latest.osm.pbf, ~430 MB), recortado para POA por `etl/recortar_osm.py` em `otp/poa.osm.pbf` (~29 MB)
+- `gtfs-validator-cli.jar` (MobilityData, v8.0.1)
 
 ## API
 
@@ -34,17 +40,20 @@ Na primeira execução o script baixa automaticamente os arquivos que não vão 
 
 ## Como o GTFS é gerado
 
-- **Paradas, traçados e sequência de paradas**: GTFS EPTC de 18/09/2025.
-- **Horários de saída**: `tabela_horaria_onibus.csv` (04/11/2026), tabela OFICIAL ou, na falta dela, EVENTUAL.
-- Cada saída nova clona a viagem antiga mais próxima (mesma linha/sentido/tipo de dia) e herda a duração dela. Durações inválidas do GTFS antigo (chegada = saída) são trocadas pela mediana.
+- **Paradas**: GTFS EPTC de 18/09/2025.
+- **Horários de saída**: `tabela_horaria_onibus.csv` (04/11/2026). Fora dos períodos especiais vale a tabela OFICIAL ou, na falta dela, EVENTUAL. As tabelas sazonais (VERAO, FEVEREIRO, DEZEMBRO, CARNAVAL, FERIASINVERNO, FINADOS, FERIADONAVEGANTES, PRIMEIRODEMAIO, PASSELIVRENATAL) entram nas datas de `PERIODOS` em `etl/gerar_gtfs.py`. Cada combinação de datas vira um `service_id` em `calendar_dates.txt`.
+- **Traçados**:
+  - linha que existe no GTFS antigo e não mudou: cada saída clona a viagem antiga mais próxima (mesma linha/sentido/tipo de dia) e herda paradas, traçado e duração;
+  - linha nova ou com itinerário alterado: o traçado é reconstruído sobre o OSM a partir da sequência de ruas do `itinerario_onibus.csv` (`etl/tracados.py`), e as paradas do GTFS antigo que ficam sobre ele, no sentido certo, viram a sequência de paradas. A duração vem da velocidade mediana das viagens antigas naquela hora.
+  - os traçados antigos vinham ~90 m deslocados em relação às ruas; o ETL os realinha ao OSM.
 - Os horários intermediários são interpolados pelo OTP.
-- Serviços: dia útil, sábado, domingo e feriado (a lista de feriados está em `FERIADOS`). Validade: 01/11/2026 a 31/10/2027.
+- Validade: 01/11/2026 a 31/10/2027 (feriados em `FERIADOS`).
 
-O resumo de cada execução fica em `etl/relatorio.txt`.
+O resumo de cada execução fica em `etl/relatorio.txt`: linhas reconstruídas, itinerários alterados e linhas que ficaram de fora.
 
 ## Limitações conhecidas
 
-1. **157 linhas ficam de fora** porque não têm viagem/traçado no GTFS antigo: linhas novas, renumeradas, alimentadoras (A*, AE*), lotações etc. A lista está no relatório. Próximo passo: reconstruir o traçado a partir da sequência de ruas do `itinerario_onibus.csv` + OSM.
-2. Itinerários que mudaram desde 09/2025 continuam com o traçado antigo.
-3. Tabelas sazonais (VERÃO, CARNAVAL, PASSE LIVRE…) não são usadas.
+1. 34 linhas ficam de fora: a maioria não tem itinerário no CSV da EPTC (148, 160, 430, LI.1…); algumas têm traçado reconstruído pouco confiável. A lista está no relatório.
+2. As datas das tabelas sazonais são estimativas; confirmar nos avisos da EPTC. PASSE LIVRE (exceto Natal) e as tabelas EVENTUAL* de dia específico não são usadas.
+3. Traçados reconstruídos dependem de casar o nome da rua da EPTC com o do OSM; ~4% dos nomes não casam e o trecho é ligado pelo caminho mais curto.
 4. Não há tempo real (GPS), só a tabela horária.
