@@ -2,8 +2,10 @@
 #   .\iniciar.ps1            -> usa o grafo já construído
 #   .\iniciar.ps1 -Rebuild   -> regenera o GTFS a partir de dados\ e reconstrói o grafo
 #   .\iniciar.ps1 -Validar   -> roda o gtfs-validator (MobilityData) no GTFS gerado e sai
-param([switch]$Rebuild, [switch]$Validar)
+#   .\iniciar.ps1 -Banco     -> recarrega o PostgreSQL (CSVs de dados\, GTFS gerado e mapa)
+param([switch]$Rebuild, [switch]$Validar, [switch]$Banco)
 $ErrorActionPreference = "Stop"
+$carregar = [bool]$Banco
 $raiz = $PSScriptRoot
 $py = Join-Path $raiz ".venv\Scripts\python.exe"
 
@@ -40,12 +42,27 @@ if (-not (Test-Path $osm)) {
     $Rebuild = $true
 }
 
+# PostgreSQL: na primeira vez cria o banco e o usuário (pede a senha do usuário postgres)
+$envArq = Join-Path $raiz ".env"
+if (-not ((Test-Path $envArq) -and (Select-String -Path $envArq -Pattern "^DATABASE_URL=" -Quiet))) {
+    Write-Host "Criando o banco 'uberbus' no PostgreSQL ..."
+    & $py (Join-Path $raiz "etl\criar_banco.py")
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao criar o banco (o PostgreSQL está instalado e rodando?)" }
+    $carregar = $true
+}
+
 if ($Rebuild -or -not (Test-Path (Join-Path $raiz "otp\graph.obj"))) {
     & $py (Join-Path $raiz "etl\gerar_gtfs.py")
     if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar o GTFS" }
     Push-Location (Join-Path $raiz "otp")
     java -Xmx8G -jar otp.jar --build --save .
     Pop-Location
+    $carregar = $true
+}
+
+if ($carregar) {
+    & $py (Join-Path $raiz "etl\carregar_postgres.py")
+    if ($LASTEXITCODE -ne 0) { throw "Falha ao carregar o PostgreSQL" }
 }
 
 if ($Validar) {

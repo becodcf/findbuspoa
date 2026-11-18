@@ -6,12 +6,13 @@ Planejador de viagens de ônibus para Porto Alegre usando só dados abertos e so
 dados/ (EPTC)  ──►  etl/gerar_gtfs.py  ──►  otp/gtfs-poa.zip  ──►  OpenTripPlanner (:8080)
                                                                         ▲
                        navegador  ──►  backend/app.py (FastAPI :8000) ──┘
-                                              └──► Nominatim (geocoding OSM)
+                                              ├──► PostgreSQL (busca de lugares, linhas, horários, cache, histórico)
+                                              └──► Nominatim (endereço exato, com cache no PostgreSQL)
 ```
 
 ## Rodar
 
-Pré-requisitos: Python 3.11+ e Java 21+.
+Pré-requisitos: Python 3.11+, Java 21+ e PostgreSQL 14+. Passo a passo completo em [INSTALACAO.md](INSTALACAO.md).
 
 ```powershell
 .\iniciar.ps1            # sobe OTP + backend; abra http://localhost:8000
@@ -34,9 +35,12 @@ Na primeira execução o script baixa automaticamente os arquivos que não vão 
 
 | Rota | Descrição |
 |---|---|
-| `GET /api/geocode?q=Rua Ramiro Barcelos 2350` | endereço → lat/lon (Nominatim, máx. 1 req/s) |
+| `GET /api/sugestoes?q=ramiro barcelos` | lugares enquanto se digita: ruas, lugares, endereços com número, paradas (PostgreSQL) |
+| `GET /api/geocode?q=Rua Ramiro Barcelos 2350` | opções de endereço exato para a pessoa escolher (Nominatim, máx. 1 req/s, cache no PostgreSQL) |
+| `GET /api/linhas?q=` e `GET /api/linhas/{numero}` | linhas; paradas, ruas e horários de uma linha |
+| `GET /api/paradas/proximas?lat=&lon=&raio=400` | paradas perto de um ponto e as linhas de cada uma |
 | `GET /api/rota?de_lat=&de_lon=&para_lat=&para_lon=&quando=2026-11-11T08:00:00-03:00` | até 3 opções de viagem com trechos, horários e geometria (polyline) |
-| `GET /api/saude` | status do OTP |
+| `GET /api/saude` | status do OTP e do banco |
 
 ## Como o GTFS é gerado
 
@@ -50,6 +54,20 @@ Na primeira execução o script baixa automaticamente os arquivos que não vão 
 - Validade: 01/11/2026 a 31/10/2027 (feriados em `FERIADOS`).
 
 O resumo de cada execução fica em `etl/relatorio.txt`: linhas reconstruídas, itinerários alterados e linhas que ficaram de fora.
+
+## Banco de dados (PostgreSQL)
+
+Esquema em `db/esquema.sql`; carga por `etl/carregar_postgres.py` (~45 s), que roda no `-Rebuild`, no `-Banco` e na primeira execução.
+
+| Tabela | Conteúdo |
+|---|---|
+| `linhas`, `paradas`, `linha_paradas` | linhas e paradas do GTFS gerado |
+| `horarios`, `itinerarios`, `frota` | CSVs da EPTC como vieram (todas as tabelas horárias, inclusive as sazonais) |
+| `lugares` | busca enquanto se digita: ruas, lugares com nome e endereços com número do OSM + paradas; índice trigrama sem acento |
+| `geocode_cache` | respostas do Nominatim (preservada entre cargas) |
+| `buscas` | histórico das buscas de rota (preservada entre cargas) |
+
+Na página, as sugestões vêm do banco; o Nominatim só é chamado quando a pessoa pede o endereço exato (Enter ou "Procurar endereço exato"), porque a política dele proíbe uso como autocompletar. O sistema nunca escolhe o endereço sozinho: sem escolha, mostra as opções.
 
 ## Limitações conhecidas
 

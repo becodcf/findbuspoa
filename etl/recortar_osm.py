@@ -27,7 +27,13 @@ def main(origem: Path, destino: Path) -> None:
     vias: set[int] = set()
     with osmium.BackReferenceWriter(str(destino), ref_src=str(origem), overwrite=True) as saida:
         for obj in osmium.FileProcessor(str(origem)).with_locations():
-            if obj.is_way():
+            if obj.is_node():
+                # pontos soltos com nome ou endereço (lojas, hospitais, números de casa):
+                # o OTP não usa, mas a busca de lugares no PostgreSQL sim
+                if len(obj.tags) and dentro(obj.location) and (
+                        "name" in obj.tags or "addr:housenumber" in obj.tags):
+                    saida.add_node(obj)
+            elif obj.is_way():
                 if any(dentro(n.location) for n in obj.nodes):
                     vias.add(obj.id)
                     saida.add_way(obj)

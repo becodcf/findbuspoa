@@ -8,3 +8,4 @@ otp/validacao/
 dados/osm/
 etl/cache/
 ferramentas/
+.env

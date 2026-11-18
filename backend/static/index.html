@@ -8,12 +8,26 @@
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, sans-serif; display: flex; height: 100vh; }
-  #painel { width: 380px; padding: 16px; overflow-y: auto; border-right: 1px solid #ddd; background: #fafafa; }
+  #painel { width: 400px; padding: 16px; overflow-y: auto; border-right: 1px solid #ddd; background: #fafafa; }
   #mapa { flex: 1; }
   h1 { font-size: 20px; margin: 0 0 12px; }
-  label { font-size: 12px; color: #555; display: block; margin-top: 8px; }
+  label { font-size: 12px; color: #555; display: block; margin-top: 10px; }
   input, button { width: 100%; padding: 8px; font-size: 14px; margin-top: 4px; }
-  button { background: #1a73e8; color: #fff; border: 0; border-radius: 4px; cursor: pointer; margin-top: 12px; }
+  input { border: 1px solid #bbb; border-radius: 4px; }
+  input.ok { border-color: #1e8e3e; background: #f3fbf5; }
+  button { background: #1a73e8; color: #fff; border: 0; border-radius: 4px; cursor: pointer; margin-top: 14px; }
+  .campo { position: relative; }
+  .lista { position: absolute; left: 0; right: 0; top: 100%; z-index: 1000; background: #fff; border: 1px solid #bbb;
+           border-top: 0; border-radius: 0 0 6px 6px; max-height: 340px; overflow-y: auto; margin: 0; padding: 0;
+           list-style: none; box-shadow: 0 4px 12px #0002; }
+  .lista li { padding: 7px 10px; cursor: pointer; border-top: 1px solid #eee; }
+  .lista li.sel, .lista li:hover { background: #e8f0fe; }
+  .lista .n { font-size: 14px; }
+  .lista .d { font-size: 12px; color: #666; }
+  .lista .t { font-size: 11px; color: #1a73e8; text-transform: uppercase; letter-spacing: .03em; margin-right: 6px; }
+  .lista li.acao { color: #1a73e8; font-size: 13px; }
+  .lista li.info { color: #777; font-size: 13px; cursor: default; background: #fff; }
+  .escolhido { font-size: 12px; color: #1e8e3e; margin-top: 3px; min-height: 15px; }
   .dica { font-size: 12px; color: #777; margin: 8px 0; }
   .opcao { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin-top: 10px; cursor: pointer; }
   .opcao.ativa { border-color: #1a73e8; box-shadow: 0 0 0 2px #1a73e855; }
@@ -21,20 +35,29 @@
   .trecho { font-size: 13px; margin-top: 6px; }
   .linha { display: inline-block; background: #1a73e8; color: #fff; border-radius: 4px; padding: 1px 6px; font-weight: bold; }
   .erro { color: #c00; font-size: 13px; margin-top: 10px; }
-  @media (max-width: 700px) { body { flex-direction: column; } #painel { width: 100%; height: 50vh; } }
+  @media (max-width: 700px) { body { flex-direction: column; } #painel { width: 100%; height: 55vh; } }
 </style>
 </head>
 <body>
 <div id="painel">
   <h1>UberBus POA</h1>
-  <label>Origem</label>
-  <input id="origem" placeholder="ex: Mercado Público">
-  <label>Destino</label>
-  <input id="destino" placeholder="ex: Rua Ramiro Barcelos 2350">
-  <label>Saída</label>
+  <label for="origem">Origem</label>
+  <div class="campo">
+    <input id="origem" placeholder="ex: Mercado Público" autocomplete="off">
+    <ul class="lista" id="lista-origem" hidden></ul>
+  </div>
+  <div class="escolhido" id="esc-origem"></div>
+  <label for="destino">Destino</label>
+  <div class="campo">
+    <input id="destino" placeholder="ex: Rua Ramiro Barcelos 2350" autocomplete="off">
+    <ul class="lista" id="lista-destino" hidden></ul>
+  </div>
+  <div class="escolhido" id="esc-destino"></div>
+  <label for="quando">Saída</label>
   <input id="quando" type="datetime-local">
   <button id="buscar">Buscar rotas</button>
-  <p class="dica">Ou clique no mapa: 1º clique = origem, 2º = destino.</p>
+  <p class="dica">Digite e escolha o lugar na lista. Com número da casa, use "Procurar endereço exato" ou Enter.
+    Também dá para clicar no mapa: 1º clique = origem, 2º = destino.</p>
   <div id="resultado"></div>
 </div>
 <div id="mapa"></div>
@@ -45,39 +68,129 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19, attribution: '© OpenStreetMap'
 }).addTo(mapa);
 const camada = L.layerGroup().addTo(mapa);
-let pontos = { origem: null, destino: null };
-let marcadores = {};
+const pontos = { origem: null, destino: null };
+const marcadores = {};
 let opcoes = [];
 
 const agora = new Date(); agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
 document.getElementById('quando').value = agora.toISOString().slice(0, 16);
 
-function marcar(tipo, lat, lon, nome) {
-  pontos[tipo] = { lat, lon };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function marcar(tipo, p) {
+  pontos[tipo] = p;
   if (marcadores[tipo]) mapa.removeLayer(marcadores[tipo]);
-  marcadores[tipo] = L.marker([lat, lon], { title: tipo }).addTo(mapa).bindPopup(tipo + (nome ? ': ' + nome : ''));
+  marcadores[tipo] = L.marker([p.lat, p.lon], { title: tipo }).addTo(mapa)
+    .bindPopup((tipo === 'origem' ? 'Origem: ' : 'Destino: ') + esc(p.nome));
+  const input = document.getElementById(tipo);
+  input.value = p.nome;
+  input.classList.add('ok');
+  document.getElementById('esc-' + tipo).textContent = p.detalhe ? 'Escolhido: ' + p.detalhe : 'Escolhido';
 }
+
+function limpar(tipo) {
+  pontos[tipo] = null;
+  document.getElementById(tipo).classList.remove('ok');
+  document.getElementById('esc-' + tipo).textContent = '';
+  if (marcadores[tipo]) { mapa.removeLayer(marcadores[tipo]); delete marcadores[tipo]; }
+}
+
+// ---------------------------------------------------------------- campo com lista de opções
+function campo(tipo) {
+  const input = document.getElementById(tipo);
+  const lista = document.getElementById('lista-' + tipo);
+  let itens = [], sel = -1, timer = null, pedido = 0;
+
+  function mostrar(novos, extra) {
+    itens = novos; sel = -1;
+    const html = itens.map((x, i) => x.acao
+      ? `<li class="acao" data-i="${i}">${esc(x.rotulo)}</li>`
+      : `<li data-i="${i}"><div class="n"><span class="t">${esc(x.tipo)}</span>${esc(x.nome)}</div>` +
+        (x.detalhe ? `<div class="d">${esc(x.detalhe)}</div>` : '') + '</li>').join('');
+    lista.innerHTML = html + (extra ? `<li class="info">${esc(extra)}</li>` : '');
+    lista.hidden = !lista.innerHTML;
+  }
+  function fechar() { lista.hidden = true; sel = -1; }
+  function realcar() {
+    lista.querySelectorAll('li[data-i]').forEach(li => li.classList.toggle('sel', +li.dataset.i === sel));
+    const li = lista.querySelector('li.sel'); if (li) li.scrollIntoView({ block: 'nearest' });
+  }
+  const acaoExata = () => ({ acao: true, rotulo: `Procurar endereço exato: "${input.value.trim()}"` });
+
+  async function locais() {
+    const q = input.value.trim(), meu = ++pedido;
+    if (q.length < 2) { fechar(); return; }
+    let res = [];
+    try {
+      const r = await fetch('/api/sugestoes?q=' + encodeURIComponent(q));
+      if (r.ok) res = await r.json();
+    } catch (e) { /* sem banco: só a busca exata */ }
+    if (meu !== pedido) return;  // chegou resposta de uma digitação antiga
+    mostrar([...res, acaoExata()]);
+  }
+
+  async function exato() {
+    clearTimeout(timer);  // a lista local agendada não pode sobrescrever o resultado exato
+    const q = input.value.trim(), meu = ++pedido;
+    if (q.length < 3) return [];
+    mostrar([], 'Procurando endereço...');
+    try {
+      const r = await fetch('/api/geocode?q=' + encodeURIComponent(q));
+      const res = r.ok ? await r.json() : [];
+      if (meu !== pedido) return [];
+      mostrar(res, res.length ? 'Escolha o endereço certo na lista.' : 'Nenhum endereço encontrado. Tente outro texto ou clique no mapa.');
+      return res;
+    } catch (e) {
+      mostrar([], 'Erro ao procurar o endereço.');
+      return [];
+    }
+  }
+
+  function escolher(i) {
+    const x = itens[i];
+    if (!x) return;
+    if (x.acao) { exato(); return; }
+    marcar(tipo, x);
+    fechar();
+  }
+
+  input.addEventListener('input', () => {
+    limpar(tipo);
+    clearTimeout(timer);
+    timer = setTimeout(locais, 220);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (lista.hidden || !itens.length) return;
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + itens.length) % itens.length;
+      realcar();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (sel >= 0) escolher(sel); else exato();
+    } else if (e.key === 'Escape') fechar();
+  });
+  lista.addEventListener('mousedown', e => {  // mousedown: antes do blur do campo
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); escolher(+li.dataset.i); }
+  });
+  input.addEventListener('blur', () => setTimeout(fechar, 150));
+  input.addEventListener('focus', () => { if (!pontos[tipo] && itens.length) lista.hidden = false; });
+  return { exato, input };
+}
+const campos = { origem: campo('origem'), destino: campo('destino') };
 
 mapa.on('click', e => {
   const tipo = !pontos.origem || pontos.destino ? 'origem' : 'destino';
-  if (tipo === 'origem') { pontos.destino = null; if (marcadores.destino) mapa.removeLayer(marcadores.destino); }
-  marcar(tipo, e.latlng.lat, e.latlng.lng);
-  document.getElementById(tipo).value = e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5);
+  if (tipo === 'origem') limpar('destino'), (document.getElementById('destino').value = '');
+  marcar(tipo, { lat: e.latlng.lat, lon: e.latlng.lng, nome: 'Ponto no mapa',
+                 detalhe: e.latlng.lat.toFixed(5) + ', ' + e.latlng.lng.toFixed(5) });
   if (tipo === 'destino') buscar();
 });
 
-async function resolver(tipo) {
-  const txt = document.getElementById(tipo).value.trim();
-  const m = txt.match(/^(-?\d+\.\d+),\s*(-?\d+\.\d+)$/);
-  if (m) { marcar(tipo, +m[1], +m[2]); return; }
-  const r = await fetch('/api/geocode?q=' + encodeURIComponent(txt));
-  const lista = await r.json();
-  if (!r.ok || !lista.length) throw new Error('Endereço não encontrado: ' + txt);
-  marcar(tipo, lista[0].lat, lista[0].lon, lista[0].nome);
-}
-
+// ---------------------------------------------------------------- rotas
 function decodificar(str) {  // Google encoded polyline
-  let i = 0, lat = 0, lon = 0, pts = [];
+  let i = 0, lat = 0, lon = 0; const pts = [];
   while (i < str.length) {
     for (const k of [0, 1]) {
       let b, s = 0, res = 0;
@@ -100,38 +213,47 @@ function desenhar(idx) {
     linhas.push(L.polyline(pts, {
       color: onibus ? '#' + (t.cor || '1a73e8') : '#555', weight: onibus ? 6 : 4, dashArray: onibus ? null : '6 8'
     }).addTo(camada));
-    if (onibus) L.circleMarker(pts[0], { radius: 6 }).addTo(camada).bindPopup('Embarque: ' + t.de.name);
+    if (onibus) L.circleMarker(pts[0], { radius: 6 }).addTo(camada).bindPopup('Embarque: ' + esc(t.de.name));
   }
   mapa.fitBounds(L.featureGroup(linhas).getBounds(), { padding: [30, 30] });
 }
 
 async function buscar() {
   const out = document.getElementById('resultado');
+  // nunca escolhe o endereço sozinho: sem ponto escolhido, abre a lista de opções
+  for (const tipo of ['origem', 'destino']) {
+    if (pontos[tipo]) continue;
+    if (!campos[tipo].input.value.trim()) {
+      out.innerHTML = `<p class="erro">Informe a ${tipo === 'origem' ? 'origem' : 'o destino'}.</p>`; return;
+    }
+    out.innerHTML = `<p class="dica">Escolha ${tipo === 'origem' ? 'a origem' : 'o destino'} na lista.</p>`;
+    campos[tipo].input.focus();
+    await campos[tipo].exato();
+    return;
+  }
   out.innerHTML = 'Buscando...';
   try {
-    if (!pontos.origem || !/^-?\d/.test(document.getElementById('origem').value)) await resolver('origem');
-    if (!pontos.destino || !/^-?\d/.test(document.getElementById('destino').value)) await resolver('destino');
     const q = new URLSearchParams({
-      de_lat: pontos.origem.lat, de_lon: pontos.origem.lon,
-      para_lat: pontos.destino.lat, para_lon: pontos.destino.lon,
+      de_lat: pontos.origem.lat, de_lon: pontos.origem.lon, de_nome: pontos.origem.nome,
+      para_lat: pontos.destino.lat, para_lon: pontos.destino.lon, para_nome: pontos.destino.nome,
       quando: document.getElementById('quando').value + ':00-03:00'
     });
     const r = await fetch('/api/rota?' + q);
     const dados = await r.json();
-    if (!r.ok) throw new Error(JSON.stringify(dados.detail));
+    if (!r.ok) throw new Error(typeof dados.detail === 'string' ? dados.detail : JSON.stringify(dados.detail));
     opcoes = dados.opcoes;
     if (!opcoes.length) { out.innerHTML = '<p class="erro">Nenhuma rota encontrada nesse horário.</p>'; return; }
     out.innerHTML = opcoes.map((o, i) => `
       <div class="opcao" onclick="desenhar(${i})">
         <b>${o.saida} → ${o.chegada}</b> · ${o.duracao_min} min · ${o.caminhada_m} m a pé
         ${o.trechos.map(t => t.modo === 'ONIBUS'
-          ? `<div class="trecho"><span class="linha">${t.linha}</span> ${t.nome_linha || ''}<br>
-             ${t.saida} embarque em <i>${t.de.name}</i><br>${t.chegada} desce em <i>${t.para.name}</i> (${t.paradas} paradas)</div>`
+          ? `<div class="trecho"><span class="linha">${esc(t.linha)}</span> ${esc(t.nome_linha || '')}<br>
+             ${t.saida} embarque em <i>${esc(t.de.name)}</i><br>${t.chegada} desce em <i>${esc(t.para.name)}</i> (${t.paradas} paradas)</div>`
           : `<div class="trecho">A pé: ${t.duracao_min} min (${t.distancia_m} m)</div>`).join('')}
       </div>`).join('');
     desenhar(0);
   } catch (e) {
-    out.innerHTML = '<p class="erro">' + e.message + '</p>';
+    out.innerHTML = '<p class="erro">' + esc(e.message) + '</p>';
   }
 }
 document.getElementById('buscar').onclick = buscar;

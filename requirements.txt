@@ -5,3 +5,5 @@ osmium>=4.0
 fastapi
 uvicorn[standard]
 httpx
+psycopg[binary]>=3.2
+psycopg_pool
