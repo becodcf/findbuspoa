@@ -1,4 +1,4 @@
--- Esquema do banco do UberBus POA (PostgreSQL 14+).
+-- Esquema do banco do FindBus POA (PostgreSQL 14+). O banco e o usuário continuam se chamando uberbus.
 -- Recriado do zero a cada carga por etl/carregar_postgres.py, exceto as tabelas de uso
 -- (geocode_cache e buscas), que são preservadas.
 

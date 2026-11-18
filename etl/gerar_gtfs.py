@@ -451,7 +451,7 @@ def main() -> None:
         "stop_times": novos_st,
         "calendar_dates": calendar_dates,
         "feed_info": pd.DataFrame([{
-            "feed_publisher_name": "projetoUberBus (derivado de dados EPTC)",
+            "feed_publisher_name": "FindBus POA (derivado de dados EPTC)",
             "feed_publisher_url": "https://github.com/becodcf/uberbuspoa",
             "feed_lang": "pt",
             "feed_start_date": INICIO.strftime("%Y%m%d"),

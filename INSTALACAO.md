@@ -1,4 +1,4 @@
-# Como instalar o UberBus POA em outro computador
+# Como instalar o FindBus POA em outro computador
 
 ## 1. O que a máquina precisa ter
 

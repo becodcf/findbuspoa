@@ -1,4 +1,4 @@
-# UberBus POA — MVP
+# FindBus POA — MVP
 
 Planejador de viagens de ônibus para Porto Alegre usando só dados abertos e software gratuito.
 

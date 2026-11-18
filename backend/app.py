@@ -1,5 +1,5 @@
 """
-Backend do MVP UberBus (FastAPI).
+Backend do FindBus POA (FastAPI).
 
 Rotas:
   GET /                         -> página de teste (mapa)
@@ -39,7 +39,7 @@ NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 # 1 requisição por segundo e proíbe usar o serviço como autocompletar: por isso as
 # sugestões enquanto se digita vêm do PostgreSQL, e o Nominatim só é chamado quando a
 # pessoa pede o endereço exato (Enter ou "procurar endereço").
-USER_AGENT = os.getenv("USER_AGENT", "UberBus-MVP/0.1")
+USER_AGENT = os.getenv("USER_AGENT", "FindBusPOA/0.1")
 TZ = ZoneInfo("America/Sao_Paulo")
 # Caixa de Porto Alegre (oeste, norte, leste, sul), usada para limitar os resultados.
 POA_VIEWBOX = "-51.31,-29.93,-51.01,-30.27"
@@ -53,7 +53,7 @@ async def ciclo(_app: FastAPI):
     db.fechar()
 
 
-app = FastAPI(title="UberBus MVP", lifespan=ciclo)
+app = FastAPI(title="FindBus POA", lifespan=ciclo)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 PLAN_QUERY = """

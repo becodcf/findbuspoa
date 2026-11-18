@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FindBus POA">
+  <!-- cuia de chimarrão minimalista: corpo, erva, bomba -->
+  <path d="M19 24 C17 30 12 36 13 45 C14 54 21 60 32 60 C43 60 50 54 51 45 C52 36 47 30 45 24 Z" fill="#8C5A2B"/>
+  <path d="M15 40 C24 43 40 43 49 40" fill="none" stroke="#6E4320" stroke-width="2.5" stroke-linecap="round"/>
+  <ellipse cx="32" cy="24" rx="13" ry="4" fill="#5B8C3A" stroke="#6E4320" stroke-width="2"/>
+  <line x1="33" y1="24" x2="46" y2="5" stroke="#A7AFB8" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="46" cy="5" r="2.6" fill="#A7AFB8"/>
+</svg>
